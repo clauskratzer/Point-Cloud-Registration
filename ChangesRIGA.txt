@@ -1,0 +1,311 @@
+(torch_envir) C:\PythonCaseStudies\RIGA>git diff
+diff --git a/configs/train/tdmatch.yaml b/configs/train/tdmatch.yaml
+index 050781f..4ce332f 100644
+--- a/configs/train/tdmatch.yaml
++++ b/configs/train/tdmatch.yaml
+@@ -1,6 +1,6 @@
+ misc:
+   exp_dir: tdmatch_pointnet_ppf
+-  gpu_mode: True
++  gpu_mode: False
+   verbose: True
+   verbose_freq: 10
+   mode: train
+@@ -57,7 +57,7 @@ train:
+   val_max_iter: 500
+   scheduler_interval: 1
+   snapshot_interval: 1
+-  num_workers: 8
++  num_workers: 1
+   ratio_drop: -1
+   loss_type: Circle
+   max_corr: 128
+diff --git a/lib/trainer.py b/lib/trainer.py
+index 0923d22..f93af70 100644
+--- a/lib/trainer.py
++++ b/lib/trainer.py
+@@ -21,7 +21,7 @@ class Trainer(object):
+         self.max_epoch = config.max_epoch
+         self.training_max_iter = config.training_max_iter
+         self.val_max_iter = config.val_max_iter
+-        self.device = config.device
++        self.device = "cpu"
+
+         self.best_total_loss = self.best_coarse_loss = self.best_fine_loss = 1e5
+         self.best_coarse_matching_recall = self.best_fine_matching_recall = -1.
+@@ -307,7 +307,7 @@ class Trainer(object):
+             for key, value in stats.items():
+                 stats_meter[key].update(value)
+
+-            torch.cuda.empty_cache()
++            #torch.cuda.empty_cache()
+
+             if self.local_rank <= 0 and self.verbose and (c_iter + 1) % self.verbose_freq == 0:
+                 cur_iter = num_iter * (epoch - 1) + c_iter
+diff --git a/lib/utils.py b/lib/utils.py
+index f49d0f8..075d323 100644
+--- a/lib/utils.py
++++ b/lib/utils.py
+@@ -12,7 +12,7 @@ def setup_seed(seed):
+     :return: None
+     '''
+     torch.manual_seed(seed)
+-    torch.cuda.manual_seed_all(seed)
++    #torch.cuda.manual_seed_all(seed)
+     np.random.seed(seed)
+     random.seed(seed)
+     torch.backends.cudnn.deterministic = True
+@@ -174,7 +174,7 @@ def weighted_procrustes(src_points, tgt_points, weights=None, weight_thresh=0.,
+     H = src_points_centered.permute(0, 2, 1) @ W @ tgt_points_centered
+     U, _, V = torch.svd(H)  # H = USV^T
+     Ut, V = U.transpose(1, 2), V
+-    eye = torch.eye(3).unsqueeze(0).repeat(batch_size, 1, 1).cuda()
++    eye = torch.eye(3).unsqueeze(0).repeat(batch_size, 1, 1)
+     eye[:, -1, -1] = torch.sign(torch.det(V @ Ut))
+     R = V @ eye @ Ut
+
+@@ -182,7 +182,7 @@ def weighted_procrustes(src_points, tgt_points, weights=None, weight_thresh=0.,
+     t = t.squeeze(2)
+
+     if return_transform:
+-        transform = torch.eye(4).unsqueeze(0).repeat(batch_size, 1, 1).cuda()
++        transform = torch.eye(4).unsqueeze(0).repeat(batch_size, 1, 1)
+         transform[:, :3, :3] = R
+         transform[:, :3, 3] = t
+         if squeeze_first:
+diff --git a/main.py b/main.py
+index 2c3826d..51339c3 100644
+--- a/main.py
++++ b/main.py
+@@ -25,14 +25,14 @@ def main():
+     config['local_rank'] = args.local_rank
+     #########################################################
+     #set cuda devices for both DDP training and single-GPU training
+-    if config['local_rank'] > -1:
+-        torch.cuda.set_device(config['local_rank'])
+-        config['device'] = torch.device('cuda', config['local_rank'])
+-        torch.distributed.init_process_group(backend='nccl')
++    # if config['local_rank'] > -1:
++    #     torch.cuda.set_device(config['local_rank'])
++    #     config['device'] = torch.device('cuda', config['local_rank'])
++    #     torch.distributed.init_process_group(backend='nccl')
+
+-    else:
+-        torch.cuda.set_device(0)
+-        config['device'] = torch.device('cuda', 0)
++    # else:
++    #     torch.cuda.set_device(0)
++    #     config['device'] = torch.device('cuda', 0)
+
+     ##########################################################
+     setup_seed(0) # fix the seed
+@@ -66,7 +66,7 @@ def main():
+         shutil.copy2('main.py', config.snapshot_dir)
+     ##################################################################
+     # create model
+-    config.model = RIGA(config=config).to(config.device)
++    config.model = RIGA(config=config).to("cpu")
+
+     # print the details of network architecture
+     if config.local_rank <= 0:
+diff --git a/model/modules.py b/model/modules.py
+index cd55e6f..8e8a9f9 100644
+--- a/model/modules.py
++++ b/model/modules.py
+@@ -29,11 +29,11 @@ class LearnableLogOptimalTransport(nn.Module):
+         :return matching_scores: torch.Tensor (B, M+1, N+1)
+         """
+         batch_size, num_row, num_col = scores.shape
+-        ninf = torch.tensor(-self.inf).cuda()
++        ninf = torch.tensor(-self.inf)
+
+-        padded_row_masks = torch.zeros(batch_size, num_row + 1, dtype=torch.bool).cuda()
++        padded_row_masks = torch.zeros(batch_size, num_row + 1, dtype=torch.bool)
+         padded_row_masks[:, :num_row] = ~row_masks
+-        padded_col_masks = torch.zeros(batch_size, num_col + 1, dtype=torch.bool).cuda()
++        padded_col_masks = torch.zeros(batch_size, num_col + 1, dtype=torch.bool)
+         padded_col_masks[:, :num_col] = ~col_masks
+
+         padded_col = self.alpha.expand(batch_size, num_row, 1)
+@@ -47,12 +47,12 @@ class LearnableLogOptimalTransport(nn.Module):
+         num_valid_col = col_masks.float().sum(1)
+         norm = -torch.log(num_valid_row + num_valid_col)  # (B,)
+
+-        log_mu = torch.empty(batch_size, num_row + 1).cuda()
++        log_mu = torch.empty(batch_size, num_row + 1)
+         log_mu[:, :num_row] = norm.unsqueeze(1)
+         log_mu[:, num_row] = torch.log(num_valid_col) + norm
+         log_mu[padded_row_masks] = ninf
+
+-        log_nu = torch.empty(batch_size, num_col + 1).cuda()
++        log_nu = torch.empty(batch_size, num_col + 1)
+         log_nu[:, :num_col] = norm.unsqueeze(1)
+         log_nu[:, num_col] = torch.log(num_valid_row) + norm
+         log_nu[padded_col_masks] = ninf
+diff --git a/registration/benchmark_utils.py b/registration/benchmark_utils.py
+index aa16cf9..cdebe46 100644
+--- a/registration/benchmark_utils.py
++++ b/registration/benchmark_utils.py
+@@ -91,10 +91,10 @@ def get_inlier_ratio(src_pcd, tgt_pcd, src_feat, tgt_feat, rot, trans, inlier_di
+     results['w']=dict()
+     results['wo']=dict()
+
+-    if(torch.cuda.device_count()>=1):
+-        device = torch.device('cuda')
+-    else:
+-        device = torch.device('cpu')
++    # if(torch.cuda.device_count()>=1):
++    #     device = torch.device('cuda')
++    # else:
++    device = torch.device('cpu')
+
+     src_pcd = (torch.matmul(rot, src_pcd.transpose(0,1)) + trans).transpose(0,1)
+     scores = torch.matmul(src_feat.to(device), tgt_feat.transpose(0,1).to(device)).cpu()
+@@ -128,10 +128,10 @@ def ransac_pose_estimation(src_pcd, tgt_pcd, src_feat, tgt_feat, mutual=False, d
+     For 3DMatch dataset, we observe significant improvement after changing ransac_n from 4 to 3.
+     """
+     if (mutual):
+-        if (torch.cuda.device_count() >= 1):
+-            device = torch.device('cuda')
+-        else:
+-            device = torch.device('cpu')
++        # if (torch.cuda.device_count() >= 1):
++        #     device = torch.device('cuda')
++        # else:
++        device = torch.device('cpu')
+         src_feat, tgt_feat = to_tensor(src_feat), to_tensor(tgt_feat)
+         scores = torch.matmul(src_feat.to(device), tgt_feat.transpose(0, 1).to(device)).cpu()
+         selection = mutual_selection(scores[None, :, :])[0]
+(END)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
