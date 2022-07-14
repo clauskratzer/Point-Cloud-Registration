@@ -182,17 +182,29 @@ vector<vector<float>> voxel_geo_distance(vector<PointXYZ> points,
     vector<vector<float>> vertex_geo_dist_mat; 
     for (int i=0; i<graph.size(); i++) {
         vector<float> dijk_info = heap_shortest_path(i, graph);
-        vertex_geo_dist_mat.push_back(dijk_info);
-    }
 
     // cout << "Step 2 sir!" << endl;
     // ========================================
     // Step 3: eccentricity & centricity
-    // ========================================
-    // [ ] TODO: eccentricity 
-
-    // [ ] TODO: centricity
-
+	// ========================================
+	
+	float alpha=0.4;
+	float beta=0.2;
+	float gamma=0.4;
+	int maxElementIndex = std::max_element(dijk_info.begin(),dijk_info.end()) - dijk_info.begin();
+	float maxElement = *std::max_element(dijk_info.begin(), dijk_info.end());
+	float eccentricity = maxElement;
+	
+	float centricity = std::accumulate(dijk_info.begin(), dijk_info.end(), 0.0) / dijk_info.size();
+	
+	for(int j=0; j<dijk_info.size(); j++){
+	dijk_info[j]= alpha*dijk_info[j] + beta*eccentricity+ gamma*centricity;
+	}
+		
+	vertex_geo_dist_mat.push_back(dijk_info);
+	}
+	
+	
     // ========================================
     // Step 4: Return
     // ========================================
@@ -209,4 +221,3 @@ vector<vector<float>> voxel_geo_distance(vector<PointXYZ> points,
     return points_geo_dist_mat;
 
 }
-    

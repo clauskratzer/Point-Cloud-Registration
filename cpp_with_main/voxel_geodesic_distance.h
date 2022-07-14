@@ -5,7 +5,7 @@
 #include <cmath>
 #include <queue>
 #include <iostream>
-#include "../cpp_utils/cloud/cloud.h"
+#include "cloud.h"
 using namespace std;
 
 

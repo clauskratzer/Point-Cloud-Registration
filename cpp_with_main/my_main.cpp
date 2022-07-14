@@ -1,5 +1,5 @@
 #include <iostream>
-#include "../cpp_utils/cloud/cloud.h"
+#include "cloud.h"
 #include <random>
 #include "voxel_geodesic_distance.h"
 
