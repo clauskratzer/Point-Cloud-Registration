@@ -1,5 +1,5 @@
 ### Usage
-```python
+```sh
 $ python dummy_test.py
 ```
 
