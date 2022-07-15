@@ -1,25 +1,24 @@
 ### Usage
 1. install pybind11 by
-```
-$ pip install pybind11
-```
+    ```sh
+    $ pip install pybind11
+    ```
 2. build 
-```sh
-$ python setup.py build_ext -i
-```
+    ```sh
+    $ python setup.py build_ext -i
+    ```
 3. run dummy test on letter C
-```sh
-python dummy_test.py
-```
-4. how to use in a script
-```python
-from wrap import np_voxel_geo_distance
-dist_mat = np_voxel_geo_distance(points, voxel_size) # currently pairwise
-```
-
+    ```sh
+    $ python dummy_test.py
+    ```
+4. how to use in a python script
+    ```python
+    from wrap import np_voxel_geo_distance
+    dist_mat = np_voxel_geo_distance(points, voxel_size) # currently pairwise
+    ```
 
 ### Reuse the wrapper for diffusion distance
-* check out `voxel_geodesic_distance.cpp`
+* take a look at [`voxel_geodesic_distance.cpp`](./voxel_geodesic_distance.cpp)
 * the definition of voxel geo distance calculation is like:
     ```cpp
     void voxel_geo_distance(double* points, double* nodes, int N, int M, double voxel_size, double* dist_mat)
