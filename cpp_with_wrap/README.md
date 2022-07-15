@@ -18,7 +18,7 @@
     ```
 
 ### Reuse the wrapper for diffusion distance
-* check out `voxel_geodesic_distance.cpp`
+* take a look at [`voxel_geodesic_distance.cpp`](./voxel_geodesic_distance.cpp)
 * the definition of voxel geo distance calculation is like:
     ```cpp
     void voxel_geo_distance(double* points, double* nodes, int N, int M, double voxel_size, double* dist_mat)
