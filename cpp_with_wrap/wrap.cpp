@@ -1,9 +1,9 @@
-<%
-cfg['sources'] = ['voxel_geodesic_distance.cpp']
-cfg['compiler_args'] = ['-std=c++11', '-stdlib=libc++', '-mmacosx-version-min=10.7']
-cfg['include_dirs'] = ['/Users/hoijanlai/.pyenv/versions/pylab/lib/python3.7/site-packages/pybind11/include']
-setup_pybind11(cfg)
-%>
+// <%
+// cfg['sources'] = ['voxel_geodesic_distance.cpp']
+// cfg['compiler_args'] = ['-std=c++11', '-stdlib=libc++', '-mmacosx-version-min=10.7']
+// cfg['include_dirs'] = ['/Users/hoijanlai/.pyenv/versions/pylab/lib/python3.7/site-packages/pybind11/include']
+// setup_pybind11(cfg)
+// %>
 #include "voxel_geodesic_distance.h"
 #include<pybind11/pybind11.h>
 #include<pybind11/numpy.h>
@@ -11,7 +11,7 @@ setup_pybind11(cfg)
 namespace py = pybind11;
 using namespace pybind11::literals;
 
-py::array_t<double> np_voxel_geo_distance(py::array_t<double> py_point_cloud) {
+py::array_t<double> np_voxel_geo_distance(py::array_t<double> py_point_cloud, double voxel_size) {
     auto in_buf = py_point_cloud.request();
     int n = in_buf.shape[0];
     // int d = in_buf.shape[1];
@@ -19,7 +19,7 @@ py::array_t<double> np_voxel_geo_distance(py::array_t<double> py_point_cloud) {
     double *in_ptr  = static_cast<double *>(in_buf.ptr);
     
     double* dist_mat = new double[n*n];
-    voxel_geo_distance(in_ptr, in_ptr, n, n, 1.0, dist_mat);
+    voxel_geo_distance(in_ptr, in_ptr, n, n, voxel_size, dist_mat);
 
     auto result = py::array(
         py::buffer_info(
