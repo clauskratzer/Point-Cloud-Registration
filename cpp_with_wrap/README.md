@@ -1,9 +1,9 @@
 ### Usage
-```
+```python
 $ python dummy_test.py
 ```
 
-```
+```python
 import cppimport
 vgd = cppimport('wrap')
 
