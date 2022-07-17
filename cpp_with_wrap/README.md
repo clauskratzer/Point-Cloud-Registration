@@ -1,15 +1,18 @@
 ### Usage
 1. install pybind11 by
-    ```sh
+    ```bash
     $ pip install pybind11
     ```
 2. build 
-    ```sh
+    ```bash
     $ python setup.py build_ext -i
     ```
 3. run test on 4d point cloud
-    ```sh
+    ```bash
     $ python test_with_steve.py
+    ```
+    you will need to input some numbers
+    ```bash
     Percentage of the Point Cloud to calculate: 0.25 # 3/4 of the whole point cloud will be discarded (by taking a patch, not sampling)
     Voxel Size: 0.03
     Sample_rate for Visualization: 0.1 # kde plot 
