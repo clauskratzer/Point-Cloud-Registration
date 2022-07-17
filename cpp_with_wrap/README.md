@@ -17,6 +17,7 @@
     Voxel Size: 0.03
     Sample_rate for Visualization: 0.1 # kde plot 
     ```
+    Then you will get some visualization (KDE will need some time to plot) 
     ![Figure](./Figure.png)
 4. how to use in a python script
     ```python
