@@ -1,5 +1,7 @@
 #include "voxel_geodesic_distance.h"
 #define INF 0x3f3f3f3f
+#define NULL_SIZE 0.0
+//#define NULL_N -1
 
 int DELTAS[26][3] = {    {-1,-1,-1},{ 0,-1,-1},{ 1,-1,-1},
                          {-1,-1, 0},{ 0,-1, 0},{ 1,-1, 0},
@@ -15,7 +17,9 @@ int DELTAS[26][3] = {    {-1,-1,-1},{ 0,-1,-1},{ 1,-1,-1},
 double WEIGHTS[4] = {0.0, 1.0, double(sqrt(2)), double(sqrt(3))};
 
 
-pair<vector<double>, vector<double>> bbox(double* points, int N) {
+double voxel_info(double* points, int N, 
+                  double* max_coord, double* min_coord,
+                  double voxel_size, int n_voxels) {
     double minx = 1e9, maxx = -1e9;
     double miny = 1e9, maxy = -1e9;
     double minz = 1e9, maxz = -1e9;
@@ -28,9 +32,18 @@ pair<vector<double>, vector<double>> bbox(double* points, int N) {
         maxy = max(maxy, points[i*3 + 1]);
         maxz = max(maxz, points[i*3 + 2]);
     }
-    vector<double> bbox0 { minx, miny, minz };
-    vector<double> bbox1 { maxx, maxy, maxz };
-    return make_pair(bbox0, bbox1);
+
+    max_coord[0] = maxx;
+    max_coord[1] = maxy;
+    max_coord[2] = maxz;
+    min_coord[0] = minx;
+    min_coord[1] = miny;
+    min_coord[2] = minz;
+
+    if (NULL_SIZE==voxel_size)
+        return max({maxx-minx, maxy-miny, maxz-minz})/(n_voxels-1); 
+    else
+        return voxel_size;
 }
 
 
@@ -65,15 +78,16 @@ vector<double> heap_shortest_path(int src, vector<vector<pair<double,int>>> grap
 
 
 
-void voxel_geo_distance(double* points, double* nodes, int N, int M, double voxel_size, double* dist_mat) {
+void voxel_geo_distance(double* points, double* nodes, int N, int M, 
+                        double* dist_mat, 
+                        double size_of_voxel, int n_voxels) {
     // ==================
     //  Step 1 : Voxelize
     // ==================
-    auto coords = bbox(points, N);
-    auto min_coord = coords.first;
-    auto max_coord = coords.second;
+    double max_coord[3], min_coord[3];
+    auto voxel_size = voxel_info(points, N, max_coord, min_coord, size_of_voxel, n_voxels);
 
-    // number of voxels in x, y, z directions
+    // number of voxels in x, y, z directions, [ ] todo: we can also fix them to a constant (i.e., a cube)
     int n_i = floor( (max_coord[0] - min_coord[0]) / voxel_size ) + 1; 
     int n_j = floor( (max_coord[1] - min_coord[1]) / voxel_size ) + 1;  
     int n_k = floor( (max_coord[2] - min_coord[2]) / voxel_size ) + 1; 
@@ -148,6 +162,10 @@ void voxel_geo_distance(double* points, double* nodes, int N, int M, double voxe
     vector<vector<double>> vertex_geo_dist_mat; 
     for (size_t i=0; i<graph.size(); i++) {
         vector<double> dijk_info = heap_shortest_path(i, graph);
+        // Replace INF [ ] TODO: should we? 
+        for (size_t i=0; i<dijk_info.size(); i++) 
+            if (dijk_info[i] >= 600) 
+                dijk_info[i] = 0.0;
 
         double alpha=0.4;
         double beta=0.2;

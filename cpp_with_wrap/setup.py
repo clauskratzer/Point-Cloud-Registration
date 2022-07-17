@@ -6,8 +6,8 @@ cpp_args = ['-std=c++11', '-stdlib=libc++']
 
 ext_modules = [
     Extension(
-    'wrap',
-        ['voxel_geodesic_distance.cpp', 'wrap.cpp'],
+    'vgd',
+        ['voxel_geodesic_distance.cpp', 'vgd.cpp'],
         include_dirs=[get_include()],
     language='c++',
     extra_compile_args = cpp_args,
@@ -15,7 +15,7 @@ ext_modules = [
 ]
 
 setup(
-    name='wrap',
+    name='vgd',
     version='0.0.1',
     description='voxels based geodesic distance calculation',
     ext_modules=ext_modules,
