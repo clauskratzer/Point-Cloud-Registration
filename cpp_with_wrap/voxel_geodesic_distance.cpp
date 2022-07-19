@@ -49,8 +49,9 @@ double voxel_info(double* points, int N,
 
 vector<double> heap_shortest_path(int src, vector<vector<pair<double,int>>> graph) {
     priority_queue< pair<double,int>, vector <pair<double,int>> , greater<pair<double,int>> > pq;
-    int V = graph.size();
 
+    int V = graph.size();
+    vector<bool> visited(V, false);
     vector<double> dist(V, INF);
     pq.push(make_pair(0.0, src));
     dist[src] = 0.0;
@@ -58,14 +59,16 @@ vector<double> heap_shortest_path(int src, vector<vector<pair<double,int>>> grap
     while (!pq.empty()) {
 
         int u = pq.top().second;
+        visited[u] = true;
         pq.pop();
 
         int s = graph[u].size();
         for (int i = 0; i < s ; ++i) {
             int v = graph[u][i].second;
+            if (visited[v]) continue;
+
             double weight = graph[u][i].first;
- 
-            if (dist[v] > dist[u] + weight) {
+            if ( dist[v] > dist[u] + weight ) {
                 dist[v] = dist[u] + weight;
                 pq.push(make_pair(dist[v], v));
             }
@@ -78,7 +81,8 @@ vector<double> heap_shortest_path(int src, vector<vector<pair<double,int>>> grap
 
 
 
-void voxel_geo_distance(double* points, double* nodes, int N, int M, 
+void voxel_geo_distance(double* points, int N,
+                        int* node_inds, int M, 
                         double* dist_mat, 
                         double size_of_voxel, int n_voxels) {
     // ==================
@@ -92,11 +96,18 @@ void voxel_geo_distance(double* points, double* nodes, int N, int M,
     int n_j = floor( (max_coord[1] - min_coord[1]) / voxel_size ) + 1;  
     int n_k = floor( (max_coord[2] - min_coord[2]) / voxel_size ) + 1; 
 
+    // cout << n_i << ' ' << n_j << ' ' << n_k << endl;
+
     // this translates points to ONE voxel in grid
     vector<int> idx_map; 
+
+    // cannot be replaced by list because the construction is by ordered
     unordered_map<int, int> acc_to_vertex;
 
+    vector<bool> voi; // whether a vertex is in node
+
     int vertex_idx = 0; // accumulate index <= N
+    int cur_node = 0;
     for (int i=0; i<N; i++) {
         double x = points[i*3 + 0];
         double y = points[i*3 + 1];
@@ -107,14 +118,29 @@ void voxel_geo_distance(double* points, double* nodes, int N, int M,
         int grid_k = floor( (z - min_coord[2]) / voxel_size );
 
         int acc_idx = grid_i + grid_j*n_i + grid_k*n_i*n_j;
-        if ( acc_to_vertex.find(acc_idx) == acc_to_vertex.end()) { // this means non-existence 
+
+        // cout << grid_i << ' ' << grid_j << ' ' << grid_k << ' ' << endl;
+        // cout << "acc_idx" << acc_idx << endl;
+
+        // increment vertex index if vertex does not exist
+        if ( acc_to_vertex.count(acc_idx) == 0 ) { 
             acc_to_vertex[acc_idx] = vertex_idx;
+            voi.push_back(false);
             vertex_idx++; 
+        }
+
+
+        // increment node index if a node shows up
+        if ( i == node_inds[cur_node] ) {
+            voi[ acc_to_vertex[acc_idx] ] = true;
+            cur_node++;
         }
 
         idx_map.push_back(acc_to_vertex[acc_idx]);
         
     }
+
+    // cout << vertex_idx << ' ' << voi.size() << endl;
 
     // ========================================
     // Step 2: Construct graph from kept voxels
@@ -145,7 +171,7 @@ void voxel_geo_distance(double* points, double* nodes, int N, int M,
 
             int offset_acc_idx = acc_idx + di + dj*n_i + dk*n_i*n_j; 
 
-            if ( acc_to_vertex.find(offset_acc_idx) != acc_to_vertex.end() ) {
+            if ( acc_to_vertex.count(offset_acc_idx) > 0 ) {
                 int w = abs(di) + abs(dj) + abs(dk);
                 int offset_vertex_idx = acc_to_vertex[offset_acc_idx];
                 
@@ -155,46 +181,53 @@ void voxel_geo_distance(double* points, double* nodes, int N, int M,
         }
     }
 
-
     // ===============================================
     // Step 3: dijkstra and eccentricity & centricity
     // ===============================================
-    vector<vector<double>> vertex_geo_dist_mat; 
-    for (size_t i=0; i<graph.size(); i++) {
-        vector<double> dijk_info = heap_shortest_path(i, graph);
-        // Replace INF [ ] TODO: should we? 
-        for (size_t i=0; i<dijk_info.size(); i++) 
-            if (dijk_info[i] >= 600) 
-                dijk_info[i] = 0.0;
 
-        double alpha=0.4;
-        double beta=0.2;
-        double gamma=0.4;
-        // int maxElementIndex = std::max_element(dijk_info.begin(),dijk_info.end()) - dijk_info.begin();
-        double maxElement = *std::max_element(dijk_info.begin(), dijk_info.end());
-        double eccentricity = maxElement;
+    vector<vector<double>> vertex_geo_dist_mat; // size should be nr_vert_nodes * nr_vert_points
+    unordered_map<int, int> real_row;
+    for (size_t i=0; i<graph.size(); i++) {
+
+        if ( voi[i] == false ) 
+            continue;
+
+        real_row[i] = vertex_geo_dist_mat.size();
+        vector<double> dijk_info = heap_shortest_path(i, graph);
         
+        // Replace INF [ ] TODO: should we? 
+        for (size_t k=0; k<dijk_info.size(); k++) 
+            if (dijk_info[k] >= 600) 
+                dijk_info[k] = 0;
+
+        double alpha=0.4,  beta=0.2, gamma=0.4;
+        double eccentricity = *std::max_element(dijk_info.begin(), dijk_info.end());
         double centricity = std::accumulate(dijk_info.begin(), dijk_info.end(), 0.0) / dijk_info.size();
         
-        for(size_t j=0; j<dijk_info.size(); j++) {
-           dijk_info[j]= alpha*dijk_info[j] + beta*eccentricity+ gamma*centricity;
-        }
-            
+        for(size_t j=0; j<dijk_info.size(); j++) 
+           dijk_info[j]= alpha*dijk_info[j] + beta*eccentricity + gamma*centricity;
+        
+        
+        // Replace -1 back to some value
+        for (size_t k=0; k<dijk_info.size(); k++) 
+            if (dijk_info[k] < 0) 
+                dijk_info[k] = 600;
+
+
         vertex_geo_dist_mat.push_back(dijk_info);
     }
-    
+
+
     // ========================================
     // Step 4: *Return
     // ========================================
     // return points_geo_dist_mat;
     for (int i=0; i<N; i++) 
-        for (int j=0; j<N; j++) 
+        for (int j=0; j<M; j++) 
         {
             int v_i = idx_map[i];
-            int v_j = idx_map[j];
-            dist_mat[i*N + j] = vertex_geo_dist_mat[v_i][v_j] * voxel_size;
+            int v_j = real_row[ idx_map[ node_inds[j] ] ]; // I know this is ugly :(
+            dist_mat[i*M + j] = vertex_geo_dist_mat[v_j][v_i] * voxel_size;
         }
-    
-
 }
 

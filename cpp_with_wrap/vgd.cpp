@@ -14,39 +14,40 @@ namespace py = pybind11;
 using namespace pybind11::literals;
 
 
-py::array_t<double> _geo_dist(py::array_t<double> py_point_cloud, double voxel_size, int n_voxels) {
-    auto in_buf = py_point_cloud.request();
-    int n = in_buf.shape[0];
-    // int d = in_buf.shape[1];
+py::array_t<double> _geo_dist(py::array_t<double> py_point_cloud, py::array_t<int> py_node_inds, double voxel_size, int n_voxels) {
+    // buffers
+    auto buf_points = py_point_cloud.request();
+    int n = buf_points.shape[0];
 
-    double *in_ptr  = static_cast<double *>(in_buf.ptr);
-    
-    double* dist_mat = new double[n*n];
+    auto buf_node_inds = py_node_inds.request();
+    int m = buf_node_inds.shape[0];
 
-    voxel_geo_distance(in_ptr, in_ptr, n, n, dist_mat, voxel_size, n_voxels);
+    // pointers 
+    double *ptr_points  = static_cast<double *>(buf_points.ptr);
+    int *ptr_node_inds = static_cast<int *>(buf_node_inds.ptr);
 
-    auto result = py::array(
-        py::buffer_info(
-            dist_mat,                              /* Pointer to data (nullptr -> ask NumPy to allocate!) */
-            sizeof(double),                        /* Size of one item */
-            py::format_descriptor<double>::value,  /* Buffer format */
-            in_buf.ndim,                           /* How many dimensions? */
-            { n, n },                              /* Number of elements for each dimension */
-            { sizeof(double), sizeof(double) }     /* Strides for each dimension */
-        )
-    );
+    // results 
+    py::array_t<double> result = py::array_t<double>(n*m);
+    auto buf_result = result.request();
+    double *dist_mat = static_cast<double *>(buf_result.ptr);
+
+    // modify result buffer pointer 
+    voxel_geo_distance(ptr_points, n, ptr_node_inds, m, dist_mat, voxel_size, n_voxels);
+
+    result.resize({n, m});
+
     return result;
 
 }
 
 
-py::array_t<double> np_voxel_size_geo_dist(py::array_t<double> py_point_cloud, double voxel_size) {
-    return _geo_dist(py_point_cloud, voxel_size, NULL_N);
+py::array_t<double> np_voxel_size_geo_dist(py::array_t<double> py_point_cloud, py::array_t<int> py_node_inds, double voxel_size) {
+    return _geo_dist(py_point_cloud, py_node_inds, voxel_size, NULL_N);
 }
 
 
-py::array_t<double> np_num_voxel_geo_dist(py::array_t<double> py_point_cloud, int n_voxels) {
-    return _geo_dist(py_point_cloud, NULL_SIZE, n_voxels);
+py::array_t<double> np_num_voxel_geo_dist(py::array_t<double> py_point_cloud, py::array_t<int> py_node_inds, int n_voxels) {
+    return _geo_dist(py_point_cloud, py_node_inds, NULL_SIZE, n_voxels);
 }
 
 

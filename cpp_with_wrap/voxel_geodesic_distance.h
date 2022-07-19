@@ -21,9 +21,10 @@ double voxel_info(double* points, int N,
 
 vector<double> heap_shortest_path(int src, vector<vector<pair<double,int>>> graph);
 
-void voxel_geo_distance(double* points, double* nodes, int N, int M, 
+void voxel_geo_distance(double* points, int N,
+                        int* node_inds, int M, 
                         double* dist_mat, 
-                        double voxel_size, int n_voxels);
+                        double size_of_voxel, int n_voxels);
 
 
 
