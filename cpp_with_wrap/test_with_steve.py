@@ -4,8 +4,14 @@ from vgd import np_voxel_size_geo_dist, np_num_voxel_geo_dist
 
 import matplotlib.pyplot as plt
 from numpy.linalg import matrix_power
+import open3d as o3d
 
 from utils import build_C_data
+
+def o3d_pc(np_pc):
+    vpc = o3d.utility.Vector3dVector(np_pc)
+    pc = o3d.geometry.PointCloud(vpc)
+    return pc
 
 def point_cloud_bbox(pc):
     p_min = pc.min(axis=0)
@@ -14,32 +20,18 @@ def point_cloud_bbox(pc):
     print("Range:", p_max - p_min)
     return np.abs(p_max - p_min)
 
-
-def pairwise_Euclidean_distances(point_cloud):
-    cols, rows = np.shape(point_cloud)
-    Eucl_dist = np.empty((cols, cols))
-    for i in range(cols):
-        for j in range(cols):
-            Eucl_dist[i, j] = np.linalg.norm(point_cloud[i] - point_cloud[j])
-    return Eucl_dist
-
-
-def diffusion_distance(point_cloud, alpha, pathlength, eu_dist, inds):
-    # Just for now
-    Euclidean_distances = eu_dist
-
+def diffusion_distance(alpha, pathlength, eu_dist, inds):
     # 1. Compute transition probability matrix
-    p_matrix = np.exp(- Euclidean_distances**2 / alpha)
+    p_matrix = np.exp(-eu_dist**2 / alpha)
     np.fill_diagonal(p_matrix, 0)
 
     # Scaling
     p_matrix = p_matrix/p_matrix.sum(axis=-1)
 
     # 2. Compute powers of p
-    t_matrix = matrix_power(p_matrix, pathlength)
+    t_matrix = p_matrix**pathlength
 
     # 3. Compute diffusion distance matrix
-    n = np.shape(t_matrix)[0]
     diffusion_distance = np.sqrt(
         np.sum((t_matrix[None, inds, :] - t_matrix[:, None, :])**2, axis=-1)
     )
@@ -50,13 +42,13 @@ def diffusion_distance(point_cloud, alpha, pathlength, eu_dist, inds):
 def kde_plot(source, target, sample_rate, title, ax):
     N = source.shape[0]
     idx = np.random.choice(range(N), int(sample_rate * N))
-    data = pd.DataFrame({"source": list(source[0, :].flatten()),
-                         "target": list(target[0, :].flatten())})
+    data = pd.DataFrame({"source": list(source[idx, :].flatten()),
+                         "target": list(target[idx, :].flatten())})
     data.plot.kde(title=title, ax=ax)
 
 
 def perturb(pc, voxel_size):
-    return np.vstack([pc, pc + np.random.randn(*pc.shape) * voxel_size * 0.5])
+    return np.vstack([pc, pc + np.random.randn(*pc.shape) * voxel_size * 0.1])
 
 
 if __name__ == "__main__":
@@ -65,15 +57,22 @@ if __name__ == "__main__":
     steve_info = np.load("./cam2_0003_cam1_0009.npz")
     s_pc = steve_info['s_pc']  # load the source point cloud
     t_pc = steve_info['t_pc']  # load the target point cloud
+    rot = steve_info['rot']
+    trans = steve_info['trans']
     matching = steve_info['correspondences']
 
     # re-collect data to make pairs to be index-aligned
     s_pc = s_pc[matching[:, 0]]
     t_pc = t_pc[matching[:, 1]]
+    s_pc = (s_pc)@rot + trans.flatten()
+    N = s_pc.shape[0]
+    idx = np.random.choice(range(N), int(0.3 * N))
+    s_pc = s_pc[idx, :]
+    t_pc = t_pc[idx, :]
 
     # eulidean distances
     eucl = np.sqrt(
-        np.sum((s_pc[None, 8900, :] - s_pc[:, None, :])**2, axis=-1)
+        np.sum((s_pc[None, 256, :] - s_pc[:, None, :])**2, axis=-1)
     )
 
     patch_rate = float(input("Percentage of the Point Cloud to calculate: "))
@@ -90,6 +89,9 @@ if __name__ == "__main__":
     s_patch = s_pc[mask]
     t_patch = t_pc[mask]
 
+    # s_o3d = o3d_pc(s_patch)
+    # t_o3d = o3d_pc(t_patch)
+    # o3d.visualization.draw_geometries([s_o3d, t_o3d])
     # # computation and visualization
 
     print("Patching is done")
@@ -105,19 +107,19 @@ if __name__ == "__main__":
             voxel_count = int(input("Voxel Count: "))
             s_voxel_size = s_ran.max() / (voxel_count - 1)
             t_voxel_size = t_ran.max() / (voxel_count - 1)
-            s_patch_temp = perturb(s_patch, s_voxel_size)
-            t_patch_temp = perturb(t_patch, t_voxel_size)
-            s_dist = np_num_voxel_geo_dist(s_patch_temp, node_inds, voxel_count)
-            t_dist = np_num_voxel_geo_dist(t_patch_temp, node_inds, voxel_count)
+            # s_patch_temp = perturb(s_patch, s_voxel_size)
+            # t_patch_temp = perturb(t_patch, t_voxel_size)
+            s_dist = np_num_voxel_geo_dist(s_patch, node_inds, voxel_count)
+            t_dist = np_num_voxel_geo_dist(t_patch, node_inds, voxel_count)
             print(s_dist.shape)
             break
 
         elif use_voxel_count == 2:
             voxel_size = float(input("Voxel Size: "))
-            s_patch_temp = perturb(s_patch, voxel_size)
-            t_patch_temp = perturb(t_patch, voxel_size)
-            s_dist = np_voxel_size_geo_dist(s_patch_temp, node_inds, voxel_size)
-            t_dist = np_voxel_size_geo_dist(t_patch_temp, node_inds, voxel_size)
+            # s_patch_temp = perturb(s_patch, voxel_size)
+            # t_patch_temp = perturb(t_patch, voxel_size)
+            s_dist = np_voxel_size_geo_dist(s_patch, node_inds, voxel_size)
+            t_dist = np_voxel_size_geo_dist(t_patch, node_inds, voxel_size)
             print(s_dist.shape)
 
             break
@@ -143,8 +145,8 @@ if __name__ == "__main__":
     alpha = float(input("alpha: "))
 
     print("calculating diffusion distances ...")
-    s_diff_dist = diffusion_distance(s_patch, alpha, path_len, s_eu_dist, node_inds)
-    t_diff_dist = diffusion_distance(t_patch, alpha, path_len, t_eu_dist, node_inds)
+    s_diff_dist = diffusion_distance(alpha, path_len, s_eu_dist, node_inds)
+    t_diff_dist = diffusion_distance(alpha, path_len, t_eu_dist, node_inds)
 
     print("diffusion distances are calculated\n")
 
